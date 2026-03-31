@@ -264,6 +264,9 @@ app.add_typer(profile_app, name="profile")
 node_app = typer.Typer(help="Remote daemon node aliases")
 app.add_typer(node_app, name="node")
 
+daemon_app = typer.Typer(help="Remote daemon server")
+app.add_typer(daemon_app, name="daemon")
+
 
 @preset_app.command("list")
 def preset_list():
@@ -1176,6 +1179,126 @@ def node_remove(
         {"status": "removed", "node": name},
         lambda d: console.print(f"[green]OK[/green] Removed node '{name}'"),
     )
+
+
+# ============================================================================
+# Daemon Subcommands
+# ============================================================================
+
+
+@daemon_app.command("start")
+def daemon_start(
+    host: str = typer.Option("0.0.0.0", "--host", "-H", help="Listen address"),
+    port: Optional[int] = typer.Option(None, "--port", "-p", help="Listen port (default from config/env/9090)"),
+    token: Optional[str] = typer.Option(None, "--token", help="Bearer token (default from config/env)"),
+    repo_root: str = typer.Option("", "--repo", help="Git repo path for worktree isolation"),
+    backend: str = typer.Option("tmux", "--backend", help="Default spawn backend on this daemon"),
+):
+    """Start the daemon HTTP server for remote agent spawning."""
+    from clawteam.config import get_effective
+    from clawteam.daemon.server import serve
+
+    if port is None:
+        val, _ = get_effective("daemon_port")
+        port = int(val) if val else 9090
+    if token is None:
+        val, _ = get_effective("daemon_token")
+        token = val or ""
+
+    serve(host=host, port=port, token=token, default_backend=backend, repo_root=repo_root)
+
+
+@daemon_app.command("healthz")
+def daemon_healthz(
+    node: str = typer.Argument(..., help="Node alias or URL (e.g. XPU or http://host:9090)"),
+):
+    """Check remote daemon health."""
+    import urllib.request
+
+    from clawteam.spawn.nodes import resolve_node
+
+    try:
+        url, _token = resolve_node(node)
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1)
+
+    endpoint = f"{url.rstrip('/')}/healthz"
+    try:
+        req = urllib.request.Request(endpoint, method="GET")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())
+    except Exception as e:
+        _output(
+            {"error": str(e), "url": endpoint},
+            lambda d: console.print(f"[red]Error:[/red] {d['error']}"),
+        )
+        raise typer.Exit(1)
+
+    _output(
+        data,
+        lambda d: console.print(f"[green]Status:[/green] {d.get('status', 'unknown')}  [dim]({endpoint})[/dim]"),
+    )
+
+
+@daemon_app.command("agents")
+def daemon_agents(
+    node: str = typer.Argument(..., help="Node alias or URL (e.g. XPU or http://host:9090)"),
+    team: str = typer.Option("default", "--team", "-t", help="Team name"),
+):
+    """List agents on a remote daemon with liveness status."""
+    import urllib.request
+
+    from clawteam.spawn.nodes import resolve_node
+
+    try:
+        url, token = resolve_node(node)
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1)
+
+    # Fall back to global daemon_token if node has no token
+    if not token:
+        from clawteam.config import get_effective
+        val, _ = get_effective("daemon_token")
+        token = val or ""
+
+    endpoint = f"{url.rstrip('/')}/agents?team={team}"
+    try:
+        req = urllib.request.Request(endpoint, method="GET")
+        if token:
+            req.add_header("Authorization", f"Bearer {token}")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())
+    except Exception as e:
+        _output(
+            {"error": str(e), "url": endpoint},
+            lambda d: console.print(f"[red]Error:[/red] {d['error']}"),
+        )
+        raise typer.Exit(1)
+
+    agents = data.get("agents", [])
+
+    def _human(d):
+        agents_list = d.get("agents", [])
+        if not agents_list:
+            console.print(f"[dim]No agents found for team '{team}'.[/dim]")
+            return
+        table = Table(title=f"Agents on {node} (team: {team})")
+        table.add_column("Name", style="cyan")
+        table.add_column("Backend")
+        table.add_column("Alive")
+        table.add_column("PID")
+        table.add_column("Spawned At")
+        for agent in agents_list:
+            alive = agent.get("alive")
+            alive_str = "[green]yes[/green]" if alive is True else "[red]no[/red]" if alive is False else "[yellow]unknown[/yellow]"
+            pid = str(agent.get("pid", "")) or ""
+            spawned = format_timestamp(agent.get("spawned_at", 0)) if agent.get("spawned_at") else ""
+            table.add_row(agent.get("name", ""), agent.get("backend", ""), alive_str, pid, spawned)
+        console.print(table)
+
+    _output(data, _human)
 
 
 @config_app.command("health")

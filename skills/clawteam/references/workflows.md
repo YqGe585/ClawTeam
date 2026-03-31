@@ -214,11 +214,11 @@ Spawn agents on remote machines via daemon for distributed team execution.
 
 ```bash
 # On remote machine: start daemon
-python -c "from clawteam.daemon.server import serve; serve(port=9090, repo_root='/path/to/project')"
+clawteam daemon start --port 9090 --repo /path/to/project
 
 # From local machine: verify connectivity
-curl -s http://remote-host:9090/healthz
-# => {"status": "ok"}
+clawteam daemon healthz http://remote-host:9090
+# => Status: ok
 ```
 
 ### Configure Node Aliases (Optional)
@@ -287,8 +287,8 @@ print(json.loads(urllib.request.urlopen(req, timeout=30).read()))
 ### Monitoring Remote Agents
 
 ```bash
-# Check remote agent liveness via daemon API
-curl -s "http://remote-host:9090/agents?team=distributed-team"
+# Check remote agent liveness via daemon CLI
+clawteam daemon agents http://remote-host:9090 --team distributed-team
 
 # Board and task commands read local data
 clawteam board show distributed-team

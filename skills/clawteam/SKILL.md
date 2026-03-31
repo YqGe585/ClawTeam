@@ -57,7 +57,7 @@ Tasks support dependency chains and priorities.
 **Board** — Team dashboard with kanban tasks, inbox counts, and message history views, plus gource activity visualization.
 
 **Daemon** — Remote agent host. Runs on a target machine and accepts spawn/stop/sync requests over HTTP.
-Start with `python -c "from clawteam.daemon.server import serve; serve()"` (default port 9090).
+Start with `clawteam daemon start` (default port 9090).
 
 **Sync** — File-based bidirectional sync between local and remote data directories.
 Uses three-way merge with last-write-wins for task conflicts. Syncs tasks, inboxes, sessions,
@@ -251,7 +251,7 @@ Configure non-default providers through `profile` + `preset` instead of hardcodi
 | `plan` | Plan approval | `submit`, `approve`, `reject` |
 | `lifecycle` | Agent lifecycle | `request-shutdown`, `approve-shutdown`, `idle` |
 | `spawn` | Process spawning (local or remote) | `spawn [backend] [command]` |
-| `daemon` | Remote agent host | `python -m clawteam.daemon.server` |
+| `daemon` | Remote agent host | `start`, `healthz`, `agents` |
 | `identity` | Identity management | `show`, `set` |
 
 ## JSON Output
@@ -283,7 +283,7 @@ clawteam --json task list my-team --status pending
 - `context inject` and `context conflicts` are the recommended way to hand off cross-worktree tasks safely.
 - `--node URL` implies `http` backend; the daemon on that URL runs the agent remotely.
 - `--node` also accepts a named alias configured via `clawteam node set`; use `clawteam node list` to see available aliases.
-- Remote agents need the daemon started on the target machine (`from clawteam.daemon.server import serve; serve()`, default port 9090).
+- Remote agents need the daemon started on the target machine (`clawteam daemon start`, default port 9090).
 - Sync uses last-write-wins conflict resolution for tasks; config/registry uses leader-wins.
 - `--task` passes literal text into the agent prompt — it is NOT a task store lookup. Use full task IDs so agents can call `task get`.
 - `--blocked-by` requires full 8-char hex task IDs. Numeric indexes or arbitrary strings create unresolvable dependencies.

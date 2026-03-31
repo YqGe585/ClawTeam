@@ -417,24 +417,78 @@ clawteam node remove <name>
 
 ---
 
-## Daemon
+## Daemon Commands (`clawteam daemon`)
 
-The daemon runs on a remote machine to accept agent spawn/stop requests and serve file sync.
+### `daemon start`
 
-### Starting the Daemon
+Start the daemon HTTP server for remote agent spawning. Runs in the foreground (Ctrl+C to stop).
 
 ```bash
-python -c "from clawteam.daemon.server import serve; serve()"                            # defaults: 0.0.0.0:9090, no auth
-python -c "from clawteam.daemon.server import serve; serve(port=8181, token='secret', repo_root='/path/to/repo')"
+clawteam daemon start [options]
 ```
 
-Or equivalently in a Python script:
-```python
-from clawteam.daemon.server import serve
-serve(port=9090, token="mysecret", repo_root="/path/to/repo")
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--host, -H` | Listen address | `0.0.0.0` |
+| `--port, -p` | Listen port | config/env/`9090` |
+| `--token` | Bearer token | config/env/`""` |
+| `--repo` | Git repo path for worktree isolation | `""` |
+| `--backend` | Default spawn backend on this daemon | `tmux` |
+
+Port and token default to the values from `daemon_port`/`daemon_token` config or environment variables when not explicitly provided.
+
+Example:
+```bash
+# Default: 0.0.0.0:9090, no auth
+clawteam daemon start
+
+# Custom port, token, and repo
+clawteam daemon start --port 8181 --token secret --repo /path/to/project
 ```
 
-### Configuration
+### `daemon healthz`
+
+Check remote daemon health.
+
+```bash
+clawteam daemon healthz <node>
+clawteam --json daemon healthz <node>
+```
+
+| Argument | Description |
+|----------|-------------|
+| `node` | Node alias or full URL (e.g. `XPU` or `http://host:9090`) |
+
+Example:
+```bash
+clawteam daemon healthz XPU
+# => Status: ok
+
+clawteam daemon healthz http://10.129.16.114:8181
+# => Status: ok
+```
+
+### `daemon agents`
+
+List agents on a remote daemon with liveness status.
+
+```bash
+clawteam daemon agents <node> [options]
+clawteam --json daemon agents <node> --team my-team
+```
+
+| Argument / Option | Description | Default |
+|-------------------|-------------|---------|
+| `node` | Node alias or full URL | required |
+| `--team, -t` | Team name | `default` |
+
+Example:
+```bash
+clawteam daemon agents XPU --team my-team
+# => Table: name, backend, alive, pid, spawned_at
+```
+
+### Daemon Configuration
 
 | Config field | Env var | Default | Description |
 |-------------|---------|---------|-------------|
